@@ -13,6 +13,8 @@ const ChatList = ({
   const { token, user } = useAuth();
   const [chats, setChats] = useState([]);
 
+  const API = process.env.REACT_APP_API_URL; // ⬅️ IMPORTANT
+
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -25,13 +27,15 @@ const ChatList = ({
     fetchChats();
   }, [token]);
 
+  // FIXED: uses Render Backend instead of localhost
   const createChat = async (contactId) => {
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/chats",
+        `${API}/api/chats`,
         { participants: [user._id, contactId] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       const newChat = res.data;
       setChats((prev) => [...prev, newChat]);
       onSelectChat(newChat._id);
