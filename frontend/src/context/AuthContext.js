@@ -10,6 +10,8 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
 
+  const API = process.env.REACT_APP_API_URL; // ⬅ IMPORTANT
+
   useEffect(() => {
     const verifyUser = async () => {
       if (!token) {
@@ -19,7 +21,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const res = await axios.get(
-          "http://localhost:5000/api/auth/me",
+          `${API}/api/auth/me`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -33,7 +35,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     verifyUser();
-  }, [token]);
+  }, [token, API]);
 
   const login = (userData, token) => {
     setUser(userData);
@@ -50,7 +52,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    // ⬇️ ADDED 'setUser' HERE so other components can update the user state!
     <AuthContext.Provider value={{ user, setUser, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
