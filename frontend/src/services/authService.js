@@ -1,24 +1,24 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/auth"; 
-// Replace with backend URL when deployed
+// Base API from .env
+const API = process.env.REACT_APP_API_URL;
 
-// Helper to build token headers
+// BUILD AUTH HEADER
 const authHeader = (token) => ({
   headers: { Authorization: `Bearer ${token}` },
 });
 
 // REGISTER USER
 export const register = async (data) => {
-  return axios.post(`${API_URL}/register`, data);
+  return axios.post(`${API}/api/auth/register`, data);
 };
 
 // LOGIN USER
 export const login = async (data) => {
-  return axios.post(`${API_URL}/login`, data);
+  return axios.post(`${API}/api/auth/login`, data);
 };
 
-// GET LOGGED-IN USER (protected)
+// GET CURRENT USER
 export const getMe = async (token) => {
-  return axios.get(`${API_URL}/me`, authHeader(token));
+  return axios.get(`${API}/api/auth/me`, authHeader(token));
 };
