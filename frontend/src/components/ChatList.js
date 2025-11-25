@@ -2,24 +2,22 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { getChats } from "../services/chatService";
-import axios from "axios";
+import api from "../api/axios"; // ✅ use global axios instead of raw axios
 
 const ChatList = ({
   onSelectChat,
   contacts = [],
   selectedChat,
-  onlineUsers = {}, // 🔥 NEW
+  onlineUsers = {},
 }) => {
   const { token, user } = useAuth();
   const [chats, setChats] = useState([]);
-
-  const API = process.env.REACT_APP_API_URL; // ⬅️ IMPORTANT
 
   useEffect(() => {
     const fetchChats = async () => {
       try {
         const res = await getChats(token);
-        setChats(res.data);
+        setChats(res.data || []);
       } catch (err) {
         console.error("Error fetching chats:", err);
       }
@@ -27,17 +25,25 @@ const ChatList = ({
     fetchChats();
   }, [token]);
 
-  // FIXED: uses Render Backend instead of localhost
+  // ✅ FIXED: create chat using /chats/create
   const createChat = async (contactId) => {
     try {
-      const res = await axios.post(
-        `${API}/api/chats`,
+      const res = await api.post(
+        "/chats/create",
         { participants: [user._id, contactId] },
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       const newChat = res.data;
-      setChats((prev) => [...prev, newChat]);
+
+      // Avoid duplicates
+      setChats((prev) => {
+        const exists = prev.some((c) => c._id === newChat._id);
+        return exists ? prev : [...prev, newChat];
+      });
+
       onSelectChat(newChat._id);
     } catch (err) {
       console.error("Error creating chat:", err);
@@ -46,7 +52,7 @@ const ChatList = ({
 
   return (
     <div className="wa-chatlist">
-      {/* ---------------- START NEW CHAT SECTION ---------------- */}
+      {/* NEW CHAT SECTION */}
       {contacts.length > 0 && (
         <>
           <h4 className="wa-section-title">Start New Chat</h4>
@@ -69,15 +75,13 @@ const ChatList = ({
         </>
       )}
 
-      {/* ------------------- CHAT LIST ------------------------ */}
+      {/* CHAT LIST */}
       {chats.map((chat) => {
         const last = chat.lastMessage || {};
         const other = chat.participants?.find((p) => p._id !== user._id);
 
-        // 🔥 ONLINE STATUS
         const isOnline = onlineUsers[other?._id] === true;
 
-        // 🔥 LAST MESSAGE PREVIEW (WhatsApp style)
         let lastPreview = "No messages yet";
         if (last.content) lastPreview = last.content;
         if (last.media) {
@@ -99,17 +103,13 @@ const ChatList = ({
               ) : (
                 <div className="placeholder" />
               )}
-
-              {/* 🔥 ONLINE DOT */}
               <span className={`wa-online-dot ${isOnline ? "online" : ""}`}></span>
             </div>
 
-            {/* CHAT CONTENT */}
+            {/* BODY */}
             <div className="wa-chatitem-body">
               <div className="wa-chatitem-row">
                 <div className="wa-chatitem-name">{other?.name || "Unknown"}</div>
-
-                {/* TIME */}
                 <div className="wa-chatitem-time">
                   {last.timestamp
                     ? new Date(last.timestamp).toLocaleTimeString([], {
@@ -121,10 +121,8 @@ const ChatList = ({
               </div>
 
               <div className="wa-chatitem-row wa-chatitem-sub">
-                {/* LAST MESSAGE PREVIEW */}
                 <div className="wa-chatitem-last">{lastPreview}</div>
 
-                {/* 🔥 UNREAD BADGE */}
                 {chat.unreadCount > 0 && (
                   <div className="wa-chatitem-unread">{chat.unreadCount}</div>
                 )}

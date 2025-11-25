@@ -12,57 +12,41 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // normalize phone: remove spaces, plus signs, dashes
-    const normalizedPhone = phone.replace(/[^\d]/g, "").trim();
+    const cleanedPhone = phone.replace(/[^\d]/g, "").trim();
 
-    // Frontend validation
-    if (normalizedPhone.length < 10 || normalizedPhone.length > 15) {
-      alert("Phone number must be between 10-15 digits");
-      return;
-    }
-    if (!name.trim()) {
-      alert("Please enter your full name");
-      return;
-    }
-    if (!password || password.length < 4) {
-      alert("Password must be at least 4 characters");
-      return;
-    }
+    // Frontend validations
+    if (!name.trim()) return alert("Name is required");
+    if (cleanedPhone.length < 10 || cleanedPhone.length > 15)
+      return alert("Phone must be 10–15 digits");
+    if (password.length < 4)
+      return alert("Password must be at least 4 characters");
 
     setLoading(true);
 
     try {
       const res = await register({
         name: name.trim(),
-        phone: normalizedPhone,
-        password,
+        phone: cleanedPhone,
+        password: password.trim(),
       });
 
-      // Expecting backend to return { message, user, token } on success
       if (res?.data?.user && res?.data?.token) {
-        alert("Registered successfully! Please login now.");
-        // Option A: go to login page
+        alert("Registration successful! Please login.");
         navigate("/login");
-
-        // Option B: auto-login (uncomment if you prefer auto-login)
-        // const { token, user } = res.data;
-        // // call your AuthContext.login(user, token) here if you have access to it
       } else {
-        // If backend returned something unexpected
         console.warn("Unexpected register response:", res);
         alert("Registration failed. Try again.");
       }
     } catch (err) {
-      console.log("Register error:", err);
+      console.error("Register error:", err);
 
-      // Prefer exact backend error when available
-      const backendMessage =
+      const backendError =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        (err?.message && String(err.message)) ||
-        "Registration failed. Phone may already be registered.";
+        err?.message ||
+        "Registration failed. Try again.";
 
-      alert(backendMessage);
+      alert(backendError);
     } finally {
       setLoading(false);
     }
@@ -123,6 +107,10 @@ const Register = () => {
           {loading ? "Registering…" : "Register"}
         </button>
       </form>
+
+      <p style={{ marginTop: "15px" }}>
+        Already have an account? <a href="/login">Login</a>
+      </p>
     </div>
   );
 };

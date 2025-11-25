@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { login } from '../services/authService';
 import { useNavigate } from 'react-router-dom';
+import socket from "../socket"; 
 
 const Login = () => {
   const [phone, setPhone] = useState('');
@@ -22,11 +23,18 @@ const Login = () => {
         return;
       }
 
+      // SAVE USER IN YOUR CONTEXT/STATE
       authLogin(user, token);
+
+      // 🔥 IMPORTANT — SOCKET SETUP ON LOGIN
+      socket.emit("setup", { userId: user._id });
+      console.log("Socket Setup Sent:", user._id);
+
       navigate('/');
-      console.log('Login successful, redirecting to home');  // Debug
+      console.log('Login successful, redirecting to home');
+      
     } catch (err) {
-      console.error('Login failed:', err.response?.data?.error || err.message);  // Debug
+      console.error('Login failed:', err.response?.data?.error || err.message);
       alert('Invalid phone or password');
     }
   };

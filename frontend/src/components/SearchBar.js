@@ -1,34 +1,35 @@
+// src/components/SearchBar.js
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../api/axios"; // ⬅ use global axios
 
 const SearchBar = ({ onSearch, onAddContact }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [error, setError] = useState("");
-
-  const API = process.env.REACT_APP_API_URL;
+  const [loading, setLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (!query) return;
+    if (!query.trim()) return;
     setError("");
+    setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
+      // backend expects /auth/search/:phone
+      const res = await api.get(`/auth/search/${query.trim()}`);
 
-      const res = await axios.get(
-        `${API}/api/auth/search?phone=${query}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      setResults(res.data);
+      setResults(res.data || []);
+      if (onSearch) onSearch(res.data);
     } catch (err) {
       console.error("Search failed:", err.response?.data || err.message);
+
       setError(
-        "Search failed: " + (err.response?.data?.error || err.message)
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Search failed"
       );
     }
+
+    setLoading(false);
   };
 
   return (
@@ -42,12 +43,13 @@ const SearchBar = ({ onSearch, onAddContact }) => {
       />
 
       <button onClick={handleSearch} style={{ padding: "10px" }}>
-        Search
+        {loading ? "Searching…" : "Search"}
       </button>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {results.length > 0 && <h4>Results:</h4>}
+
       {results.map((user) => (
         <div
           key={user._id}
@@ -55,15 +57,16 @@ const SearchBar = ({ onSearch, onAddContact }) => {
             padding: "5px",
             border: "1px solid #ccc",
             marginTop: "5px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {user.name} ({user.phone})
-          <button
-            onClick={() => onAddContact(user)}
-            style={{ marginLeft: "10px" }}
-          >
-            Add Contact
-          </button>
+          <span>
+            {user.name} ({user.phone})
+          </span>
+
+          <button onClick={() => onAddContact(user)}>Add Contact</button>
         </div>
       ))}
     </div>

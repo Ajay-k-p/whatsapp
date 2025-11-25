@@ -1,24 +1,24 @@
-import axios from "axios";
+// frontend/src/services/authService.js
+import api from "../api/axios";  // use global axios instance (correct)
 
-// Base API from .env
-const API = process.env.REACT_APP_API_URL;
-
-// BUILD AUTH HEADER
-const authHeader = (token) => ({
-  headers: { Authorization: `Bearer ${token}` },
-});
 
 // REGISTER USER
-export const register = async (data) => {
-  return axios.post(`${API}/api/auth/register`, data);
+export const register = (data) => {
+  return api.post("/auth/register", data);
 };
+
 
 // LOGIN USER
-export const login = async (data) => {
-  return axios.post(`${API}/api/auth/login`, data);
+export const login = (data) => {
+  return api.post("/auth/login", data);
 };
 
-// GET CURRENT USER
-export const getMe = async (token) => {
-  return axios.get(`${API}/api/auth/me`, authHeader(token));
+
+// GET CURRENT USER INFO
+export const getMe = (token) => {
+  return api.get("/auth/me", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 };

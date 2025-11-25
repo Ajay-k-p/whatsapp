@@ -1,167 +1,148 @@
 // backend/utils/socket.js
-const User = require("../models/User");
-const Message = require("../models/Message");
-const Chat = require("../models/Chat");
+const Message = require('../models/Message');
+const Chat = require('../models/Chat');
 
-let ioInstance;
-const onlineUsers = new Map(); // userId -> socketId
+let ioInstance = null;
+const onlineUsers = new Map(); // userId → Set(socketIds)
 
 function initSocket(io) {
   ioInstance = io;
 
-  io.on("connection", (socket) => {
-    // setup: identify user
-    socket.on("setup", async (userId) => {
+  io.on('connection', (socket) => {
+    console.log("🔵 Socket connected:", socket.id);
+
+
+    // -----------------------------------------
+    // SETUP USER
+    // -----------------------------------------
+    socket.on('setup', ({ userId }) => {
+      if (!userId) return;
+
+      socket.userId = userId;
+
+      const existing = onlineUsers.get(userId) || new Set();
+      existing.add(socket.id);
+      onlineUsers.set(userId, existing);
+
+      socket.join(`user_${userId}`);
+
+      socket.emit('connected');
+      console.log(`🟢 User ${userId} authenticated → socket ${socket.id}`);
+    });
+
+
+    // -----------------------------------------
+    // JOIN CHAT ROOM
+    // -----------------------------------------
+    socket.on('joinChat', ({ chatId }) => {
+      if (!chatId) return;
+
+      socket.join(`chat_${chatId}`);
+      console.log(`📌 Socket ${socket.id} joined chat_${chatId}`);
+    });
+
+
+    // -----------------------------------------
+    // NEW MESSAGE
+    // -----------------------------------------
+    socket.on('newMessage', async ({ message }) => {
       try {
-        socket.userId = userId;
-        onlineUsers.set(String(userId), socket.id);
-
-        socket.join(String(userId));
-
-        await User.findByIdAndUpdate(userId, { isOnline: true });
-
-        io.emit("userOnline", { userId });
-      } catch (err) {
-        console.error("setup error", err);
-      }
-    });
-
-    // Join chat room
-    socket.on("joinChat", (chatId) => {
-      socket.join(chatId);
-    });
-
-    // Typing indicator
-    socket.on("typing", ({ chatId, userId }) => {
-      socket.to(chatId).emit("typing", { chatId, userId });
-    });
-
-    // Send message
-    socket.on("sendMessage", async ({ chatId, message, senderId }) => {
-      try {
-        const payload = {
-          ...message,
-          senderId: senderId || message.sender?._id || message.sender
-        };
-
-        // Broadcast to all chat participants
-        io.to(chatId).emit("receiveMessage", payload);
-
-        // Fetch participants
-        const chat = await Chat.findById(chatId).populate("participants");
-
-        if (chat && chat.participants) {
-          chat.participants.forEach((user) => {
-            const uid = String(user._id);
-            if (uid !== String(senderId)) {
-              const socketId = onlineUsers.get(uid);
-              if (socketId) {
-                io.to(String(senderId)).emit("messageDelivered", {
-                  messageId: message._id,
-                  chatId,
-                  deliveredTo: uid
-                });
-              }
-            }
-          });
+        // If message already saved in DB
+        if (message && message._id) {
+          io.to(`chat_${message.chat}`).emit('messageReceived', message);
+          return;
         }
+
+        // Fallback persistence
+        const msg = await Message.create(message);
+
+        await Chat.findByIdAndUpdate(message.chat, {
+          $push: { messages: msg._id },
+          lastMessage: msg._id
+        });
+
+        io.to(`chat_${message.chat}`).emit('messageReceived', msg);
+
       } catch (err) {
-        console.error("sendMessage error:", err);
+        console.error("newMessage error:", err);
+        socket.emit("error", { message: "Message save failed" });
       }
     });
 
-    // Delivered
-    socket.on("messageDelivered", async ({ messageId, chatId, userId }) => {
+
+    // -----------------------------------------
+    // READ MESSAGE (BLUE TICK)
+    // -----------------------------------------
+    socket.on('messageRead', async ({ messageId, chatId, readerId }) => {
       try {
-        await Message.findByIdAndUpdate(
+        await Message.findByIdAndUpdate(messageId, {
+          $addToSet: { seenBy: readerId },
+          readAt: new Date()
+        });
+
+        io.to(`chat_${chatId}`).emit('messageRead', { messageId, readerId });
+
+      } catch (err) {
+        console.error("messageRead error:", err);
+      }
+    });
+
+
+    // -----------------------------------------
+    // ADD REACTION
+    // -----------------------------------------
+    socket.on('addReaction', async ({ messageId, reaction, reactorId }) => {
+      try {
+        const updated = await Message.findByIdAndUpdate(
           messageId,
-          { $addToSet: { deliveredTo: userId } },
+          { $push: { reactions: { user: reactorId, reaction } } },
           { new: true }
         );
 
-        const msg = await Message.findById(messageId);
-
-        io.to(String(msg.sender)).emit("messageDelivered", {
-          messageId,
-          chatId,
-          deliveredTo: userId,
-        });
-      } catch (err) {
-        console.error("delivered error", err);
-      }
-    });
-
-    // Read
-    socket.on("messageRead", async ({ messageId, chatId, readerId }) => {
-      try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          {
-            $addToSet: { seenBy: readerId },
-            read: true,
-            readAt: new Date(),
-          }
-        );
-
-        io.to(chatId).emit("messageRead", {
-          messageId,
-          readerId,
-          chatId,
-        });
-      } catch (err) {
-        console.error("read error", err);
-      }
-    });
-
-    // Add reaction
-    socket.on("addReaction", async ({ messageId, userId, emoji }) => {
-      try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          { $push: { reactions: { user: userId, emoji } } }
-        );
-
-        const msg = await Message.findById(messageId);
-        io.to(String(msg.chat)).emit("reactionAdded", { messageId, userId, emoji });
-      } catch (err) {
-        console.error("reaction error", err);
-      }
-    });
-
-    // Delete message for everyone
-    socket.on("deleteMessageForAll", async ({ messageId, chatId }) => {
-      try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          { deletedForAll: true, deletedAt: new Date() }
-        );
-
-        io.to(chatId).emit("messageDeletedForAll", { messageId });
-      } catch (err) {
-        console.error("delete error", err);
-      }
-    });
-
-    // Disconnect
-    socket.on("disconnect", async () => {
-      try {
-        const userId = socket.userId;
-
-        if (userId) {
-          onlineUsers.delete(String(userId));
-          await User.findByIdAndUpdate(userId, {
-            isOnline: false,
-            lastSeen: new Date(),
-          });
-
-          io.emit("userOffline", {
-            userId,
-            lastSeen: new Date(),
-          });
+        if (updated) {
+          io.to(`chat_${updated.chat}`).emit("reactionUpdated", updated);
         }
+
       } catch (err) {
-        console.error("disconnect error", err);
+        console.error("addReaction error:", err);
       }
+    });
+
+
+    // -----------------------------------------
+    // DELETE FOR ALL
+    // -----------------------------------------
+    socket.on('deleteMessageForAll', async ({ messageId, chatId }) => {
+      try {
+        await Message.findByIdAndUpdate(messageId, {
+          deletedForAll: true,
+          deletedAt: new Date()
+        });
+
+        io.to(`chat_${chatId}`).emit('messageDeletedForAll', { messageId });
+
+      } catch (err) {
+        console.error("deleteMessageForAll error:", err);
+      }
+    });
+
+
+    // -----------------------------------------
+    // DISCONNECT
+    // -----------------------------------------
+    socket.on("disconnect", () => {
+      const uid = socket.userId;
+
+      if (uid) {
+        const set = onlineUsers.get(uid);
+        if (set) {
+          set.delete(socket.id);
+          if (set.size === 0) onlineUsers.delete(uid);
+          else onlineUsers.set(uid, set);
+        }
+      }
+
+      console.log("🔴 Socket disconnected:", socket.id);
     });
   });
 }

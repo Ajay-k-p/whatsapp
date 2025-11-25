@@ -977,3 +977,91 @@ PROFILE PAGE STYLING
   background-color: var(--bubble-mine);
   color: #e9edef; /* Always light text on dark green bubble */
 }
+
+/* ============================================================
+   MOBILE CHAT HEADER – WhatsApp Style
+   ============================================================ */
+
+/* Mobile back button (hidden on desktop) */
+.wa-header-back {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+/* Always keep header aligned nicely */
+.wa-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--input-bar-bg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  height: 60px;
+  z-index: 10;
+}
+
+/* Left side: avatar + name */
+.wa-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+/* Avatar in header */
+.wa-header-avatar img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.wa-header-avatar {
+  position: relative;
+}
+
+.wa-title-main {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wa-title-sub {
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+/* Right action buttons (search, call, video, menu) */
+.wa-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+
+  /* SHOW mobile back button */
+  .wa-header-back {
+    display: block;
+  }
+
+  /* HIDE right action buttons */
+  .wa-header-actions {
+    display: none;
+  }
+
+  /* Shrink avatar */
+  .wa-header-avatar img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .wa-title-main {
+    font-size: 15px;
+  }
+}

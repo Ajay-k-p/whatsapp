@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api/axios"; // ⬅ use global axios instance
 
 export const AuthContext = createContext();
 
@@ -10,8 +10,6 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
 
-  const API = process.env.REACT_APP_API_URL; // ⬅ IMPORTANT
-
   useEffect(() => {
     const verifyUser = async () => {
       if (!token) {
@@ -20,10 +18,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const res = await axios.get(
-          `${API}/api/auth/me`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const res = await api.get("/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         setUser(res.data);
         localStorage.setItem("user", JSON.stringify(res.data));
@@ -35,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     verifyUser();
-  }, [token, API]);
+  }, [token]);
 
   const login = (userData, token) => {
     setUser(userData);
@@ -52,7 +49,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, token, login, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, setUser, token, login, logout, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );

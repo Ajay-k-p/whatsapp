@@ -1,28 +1,22 @@
-const mongoose = require("mongoose");
+// backend/models/Message.js
+const mongoose = require('mongoose');
 
-const reactionSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  emoji: String,
-  createdAt: { type: Date, default: Date.now },
-});
+const ReactionSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reaction: String,
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
 
-const messageSchema = new mongoose.Schema({
-  chat: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", required: true },
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+const MessageSchema = new mongoose.Schema({
+  chat: { type: mongoose.Schema.Types.ObjectId, ref: 'Chat', required: true },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   content: { type: String },
   media: { type: String },
-  type: { type: String, enum: ["text", "image", "video", "audio"], default: "text" },
-
-  deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  read: { type: Boolean, default: false },
-  readAt: { type: Date },
-
-  reactions: [reactionSchema],
-
+  reactions: [ReactionSchema],
+  seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   deletedForAll: { type: Boolean, default: false },
-  deletedAt: { type: Date },
+  createdAt: { type: Date, default: Date.now }
+});
 
-}, { timestamps: true });
-
-module.exports = mongoose.model("Message", messageSchema);
+module.exports = mongoose.model('Message', MessageSchema);

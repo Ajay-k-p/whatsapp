@@ -1,25 +1,26 @@
-import axios from "axios";
-
-// Base API from environment variable (.env)
-const API = process.env.REACT_APP_API_URL;
-
-// Reusable auth header
-const authHeader = (token) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
+// src/services/chatService.js
+import api from "../api/axios";  // FIXED PATH
 
 // Get all chats
 export const getChats = (token) =>
-  axios.get(`${API}/api/chats`, authHeader(token));
+  api.get("/chats", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
 
-// Send text/media/voice message
+// Send text/media/audio
 export const sendMessage = (data, token) =>
-  axios.post(`${API}/api/messages`, data, authHeader(token));
+  api.post("/messages/send", data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
 
-// Get all messages in a chat
+// Get all messages for a chat
 export const getMessages = (chatId, token) =>
-  axios.get(`${API}/api/messages/${chatId}`, authHeader(token));
+  api.get(`/messages/chat/${chatId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
 
 // Get statuses
 export const getStatuses = (token) =>
-  axios.get(`${API}/api/statuses`, authHeader(token));
+  api.get("/statuses", {
+    headers: { Authorization: `Bearer ${token}` }
+  });

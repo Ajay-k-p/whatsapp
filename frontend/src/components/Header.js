@@ -3,7 +3,7 @@ import React from "react";
 import { useAuth } from "../hooks/useAuth";
 import "../styles/app.css";
 
-const Header = ({ otherUser, selectedChatData, onlineUsers = {} }) => {
+const Header = ({ otherUser, selectedChatData, onlineUsers = {}, onBack }) => {
   const { user } = useAuth();
 
   if (!otherUser) {
@@ -14,12 +14,17 @@ const Header = ({ otherUser, selectedChatData, onlineUsers = {} }) => {
     );
   }
 
-  // ONLINE STATUS
   const isOnline = onlineUsers[otherUser._id] === true;
 
   return (
     <div className="wa-header">
-      {/* LEFT: Avatar + Name */}
+
+      {/* ---------- MOBILE BACK BUTTON ---------- */}
+      <button className="wa-header-back" onClick={onBack}>
+        <i className="fa fa-arrow-left"></i>
+      </button>
+
+      {/* LEFT SIDE */}
       <div className="wa-header-left">
         <div className="wa-header-avatar">
           {otherUser.profilePic ? (
@@ -34,26 +39,22 @@ const Header = ({ otherUser, selectedChatData, onlineUsers = {} }) => {
         </div>
 
         <div className="wa-header-title">
-          {/* Username / Group Name */}
           <div className="wa-title-main">{otherUser.name}</div>
 
-          {/* ONLINE / LAST SEEN */}
           <div className="wa-title-sub">
-            {isOnline ? (
-              "Online"
-            ) : otherUser.lastSeen ? (
-              `last seen ${new Date(otherUser.lastSeen).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`
-            ) : (
-              "last seen recently"
-            )}
+            {isOnline
+              ? "Online"
+              : otherUser.lastSeen
+              ? `last seen ${new Date(otherUser.lastSeen).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : "last seen recently"}
           </div>
         </div>
       </div>
 
-      {/* RIGHT ACTION BUTTONS (WhatsApp Style) */}
+      {/* RIGHT ACTIONS (Hidden on mobile) */}
       <div className="wa-header-actions">
         <button className="icon-btn">🔍</button>
         <button className="icon-btn">📞</button>
