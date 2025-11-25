@@ -1,74 +1,96 @@
 // backend/server.js
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
+require("dotenv").config();
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const http = require("http");
+const socketIo = require("socket.io");
+const path = require("path");
 
-// import routes (adjust paths if your project uses different names)
-const authRoutes = require('./routes/auth');
-const chatRoutes = require('./routes/chats');
-const messageRoutes = require('./routes/messages');
-const userRoutes = require('./routes/userRoutes');
-const mediaRoutes = require('./routes/media');
+// ROUTES
+const authRoutes = require("./routes/auth");
+const chatRoutes = require("./routes/chats");
+const messageRoutes = require("./routes/messages");
+const userRoutes = require("./routes/userRoutes");
+const mediaRoutes = require("./routes/media");
 
-const { initSocket } = require('./utils/socket');
+const { initSocket } = require("./utils/socket");
 
 const app = express();
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: "20mb" }));
 
-// Configure CORS for Vercel -> Render cross-origin requests
-const CLIENT_URL = process.env.CLIENT_URL || process.env.VERCEL_URL || '*';
-app.use(cors({
-  origin: CLIENT_URL === '*' ? '*' : CLIENT_URL,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-}));
+/* ---------------------------------------------------
+   ✅ FIXED — STRICT CORS FOR VERCEL + RENDER
+--------------------------------------------------- */
 
-// Routes (prefix with /api if you use it)
-app.use('/api/auth', authRoutes);
-app.use('/api/chats', chatRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/media', mediaRoutes);
+// Your Vercel frontend URL
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://whatsapp-silk-xi.vercel.app";
 
-// Basic health route
-app.get('/', (req, res) => res.send('WhatsApp Clone API is running'));
+// Backend Render URL (for Socket)
+const RENDER_URL = process.env.RENDER_URL || "https://whatsapp-i2eo.onrender.com";
 
-// Create server and socket.io
+app.use(
+  cors({
+    origin: FRONTEND_URL, // ❗ NO WILDCARD
+    credentials: true, // ❗ required because axios uses withCredentials
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+/* ---------------------------------------------------
+   ROUTES
+--------------------------------------------------- */
+
+app.use("/api/auth", authRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/media", mediaRoutes);
+
+// Health route
+app.get("/", (req, res) => {
+  res.send("WhatsApp Clone API is running");
+});
+
+/* ---------------------------------------------------
+   SOCKET.IO WITH STRICT CORS
+--------------------------------------------------- */
+
 const server = http.createServer(app);
+
 const io = socketIo(server, {
   cors: {
-    origin: CLIENT_URL === '*' ? '*' : CLIENT_URL,
-    methods: ['GET','POST'],
-    credentials: true
+    origin: FRONTEND_URL,
+    credentials: true,
   },
-  path: '/socket.io',
-  transports: ['websocket','polling']
+  transports: ["websocket", "polling"],
+  path: "/socket.io",
 });
 
-// Initialize socket handling (see utils/socket.js)
 initSocket(io);
 
-// Connect to MongoDB
+/* ---------------------------------------------------
+   MONGO CONNECTION
+--------------------------------------------------- */
+
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {
-  console.error('MONGO_URI not set in env!');
+  console.error("❌ MONGO_URI missing in .env");
   process.exit(1);
 }
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('Connected to MongoDB Atlas');
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
-});
 
-// Start server
+mongoose
+  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("❌ MongoDB error:", err));
+
+/* ---------------------------------------------------
+   START SERVER
+--------------------------------------------------- */
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log("🚀 Server running on port", PORT);
+  console.log("🌐 Allowed Frontend:", FRONTEND_URL);
 });
