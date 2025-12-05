@@ -16,26 +16,26 @@ const { errorHandler } = require("./middleware/errorHandler");
 const app = express();
 const server = createServer(app);
 
-// ✅ Bulletproof allowed origins
+// ✅ Allowed origins
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://whatsapp-silk-xi.vercel.app", // your production frontend
-  process.env.FRONTEND_URL,
-].filter(Boolean); // removes undefined
+  "https://whatsapp-silk-xi.vercel.app",
+  process.env.FRONTEND_URL
+].filter(Boolean);
 
-// ✅ Express CORS Middleware
+// ✅ CORS
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // Allow server-to-server
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // Allow server tools
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+      return callback(new Error("CORS blocked: " + origin));
     },
     credentials: true
   })
 );
 
-// ✅ JSON middleware
+// ✅ Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -49,6 +49,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 
+// ✅ Health test route
+app.get("/", (req, res) => {
+  res.send("✅ Backend is running...");
+});
+
 // ✅ Error handler
 app.use(errorHandler);
 
@@ -59,12 +64,12 @@ const io = new Server(server, {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
-  },
+  }
 });
 
 // ✅ Socket events
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  console.log("✅ User connected:", socket.id);
 
   socket.on("setup", (userData) => {
     socket.join(userData._id);
@@ -94,10 +99,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    console.log("❌ User disconnected:", socket.id);
   });
 });
 
-// ✅ Dynamic port
+// ✅ Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
