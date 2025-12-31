@@ -7,23 +7,21 @@ const Register = () => {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // normalize phone: remove spaces, plus signs, dashes
+    // Normalize phone (remove spaces, +, -)
     const normalizedPhone = phone.replace(/[^\d]/g, "").trim();
 
-    // Frontend validation
-    if (normalizedPhone.length < 10 || normalizedPhone.length > 15) {
-      alert("Phone number must be between 10-15 digits");
+    // Validation
+    if (!normalizedPhone || normalizedPhone.length < 10 || normalizedPhone.length > 15) {
+      alert("Phone number must be between 10–15 digits");
       return;
     }
-    if (!name.trim()) {
-      alert("Please enter your full name");
-      return;
-    }
+
     if (!password || password.length < 4) {
       alert("Password must be at least 4 characters");
       return;
@@ -33,33 +31,25 @@ const Register = () => {
 
     try {
       const res = await register({
-        name: name.trim(),
         phone: normalizedPhone,
         password,
+        // name is OPTIONAL
+        ...(name.trim() && { name: name.trim() }),
       });
 
-      // Expecting backend to return { message, user, token } on success
       if (res?.data?.user && res?.data?.token) {
-        alert("Registered successfully! Please login now.");
-        // Option A: go to login page
+        alert("Registered successfully! Please login.");
         navigate("/login");
-
-        // Option B: auto-login (uncomment if you prefer auto-login)
-        // const { token, user } = res.data;
-        // // call your AuthContext.login(user, token) here if you have access to it
       } else {
-        // If backend returned something unexpected
         console.warn("Unexpected register response:", res);
-        alert("Registration failed. Try again.");
+        alert("Registration failed. Please try again.");
       }
     } catch (err) {
-      console.log("Register error:", err);
+      console.error("Register error:", err);
 
-      // Prefer exact backend error when available
       const backendMessage =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        (err?.message && String(err.message)) ||
         "Registration failed. Phone may already be registered.";
 
       alert(backendMessage);
@@ -73,12 +63,12 @@ const Register = () => {
       <h2>Register</h2>
 
       <form onSubmit={handleSubmit}>
+        {/* OPTIONAL NAME */}
         <input
           type="text"
-          placeholder="Full Name"
+          placeholder="Full Name (optional)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          required
           style={{
             display: "block",
             marginBottom: "10px",
@@ -87,9 +77,10 @@ const Register = () => {
           }}
         />
 
+        {/* PHONE */}
         <input
           type="text"
-          placeholder="Phone Number (digits only)"
+          placeholder="Phone Number"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           required
@@ -101,6 +92,7 @@ const Register = () => {
           }}
         />
 
+        {/* PASSWORD */}
         <input
           type="password"
           placeholder="Create Password"
@@ -117,8 +109,12 @@ const Register = () => {
 
         <button
           type="submit"
-          style={{ padding: "10px", width: "100%" }}
           disabled={loading}
+          style={{
+            padding: "10px",
+            width: "100%",
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
         >
           {loading ? "Registering…" : "Register"}
         </button>

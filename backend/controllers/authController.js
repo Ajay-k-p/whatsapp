@@ -3,65 +3,47 @@ const jwt = require("jsonwebtoken");
 
 // Generate token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || "secretkey", {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id },
+    process.env.JWT_SECRET || "secretkey",
+    { expiresIn: "7d" }
+  );
 };
 
-// REGISTER
+// ================= REGISTER =================
 exports.register = async (req, res) => {
   try {
     const { phone, password, name } = req.body;
 
-    // Validate
+    // Validate phone
     if (!phone || phone.length < 10 || phone.length > 15) {
       return res.status(400).json({ error: "Invalid phone number" });
     }
+
+    // Validate password
     if (!password || password.length < 4) {
-      return res.status(400).json({ error: "Password must be at least 4 characters long" });
-    }
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
+      return res.status(400).json({
+        error: "Password must be at least 4 characters long",
+      });
     }
 
     // Check duplicate phone
     const existingUser = await User.findOne({ phone });
     if (existingUser) {
-      return res.status(400).json({ error: "Phone number already registered" });
+      return res.status(400).json({
+        error: "Phone number already registered",
+      });
     }
 
+    // Auto-generate name if not provided
+    const userName = name || `User_${phone.slice(-4)}`;
+
     // Create user
-    const user = new User({ phone, password, name });
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    // Remove password before sending
-    user.password = undefined;  // Fixed: Was incomplete in your code
-
-    res.status(201).json({
-      message: "Registration successful",
-      user,
-      token,
+    const user = await User.create({
+      phone,
+      password,
+      name: userName,
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// LOGIN
-exports.login = async (req, res) => {
-  try {
-    const { phone, password } = req.body;
-
-    // Find user & include password for comparison
-    const user = await User.findOne({ phone }).select("+password");
-    if (!user) return res.status(401).json({ error: "Invalid phone or password" });
-
-    // Compare password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ error: "Invalid phone or password" });
 
     // Generate token
     const token = generateToken(user._id);
@@ -69,21 +51,61 @@ exports.login = async (req, res) => {
     // Remove password before sending
     user.password = undefined;
 
-    res.json({ user, token });
+    res.status(201).json({
+      message: "Registration successful",
+      user,
+      token,
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Register Error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-// GET LOGGED-IN USER
+// ================= LOGIN =================
+exports.login = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({ error: "All fields required" });
+    }
+
+    const user = await User.findOne({ phone }).select("+password");
+    if (!user) {
+      return res.status(401).json({ error: "Invalid phone or password" });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid phone or password" });
+    }
+
+    const token = generateToken(user._id);
+    user.password = undefined;
+
+    res.json({ user, token });
+
+  } catch (err) {
+    console.error("Login Error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ================= GET ME =================
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).select("-password");
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
     res.json(user);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("GetMe Error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
