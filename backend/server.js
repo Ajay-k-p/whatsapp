@@ -27,7 +27,7 @@ const server = http.createServer(app);
 ========================= */
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://your-frontend.vercel.app" // 🔴 CHANGE THIS
+  "https://whatsapp-silk-xi.vercel.app"
 ];
 
 app.use(
