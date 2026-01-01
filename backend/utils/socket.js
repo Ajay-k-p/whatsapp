@@ -10,157 +10,156 @@ function initSocket(io) {
   ioInstance = io;
 
   io.on("connection", (socket) => {
-    // setup: identify user
+    /* =========================
+       USER SETUP
+    ========================= */
     socket.on("setup", async (userId) => {
-      try {
-        socket.userId = userId;
-        onlineUsers.set(String(userId), socket.id);
+      socket.userId = String(userId);
+      onlineUsers.set(socket.userId, socket.id);
 
-        socket.join(String(userId));
+      socket.join(socket.userId);
 
-        await User.findByIdAndUpdate(userId, { isOnline: true });
+      await User.findByIdAndUpdate(userId, { isOnline: true });
 
-        io.emit("userOnline", { userId });
-      } catch (err) {
-        console.error("setup error", err);
-      }
+      io.emit("userOnline", { userId });
     });
 
-    // Join chat room
+    /* =========================
+       JOIN CHAT ROOM
+    ========================= */
     socket.on("joinChat", (chatId) => {
       socket.join(chatId);
     });
 
-    // Typing indicator
-    socket.on("typing", ({ chatId, userId }) => {
-      socket.to(chatId).emit("typing", { chatId, userId });
-    });
-
-    // Send message
-    socket.on("sendMessage", async ({ chatId, message, senderId }) => {
+    /* =========================
+       SEND MESSAGE
+    ========================= */
+    socket.on("sendMessage", async ({ chatId, messageId }) => {
       try {
-        const payload = {
-          ...message,
-          senderId: senderId || message.sender?._id || message.sender
-        };
+        const msg = await Message.findById(messageId)
+          .populate("sender")
+          .populate("chat");
 
-        // Broadcast to all chat participants
-        io.to(chatId).emit("receiveMessage", payload);
+        if (!msg) return;
 
-        // Fetch participants
+        // 1️⃣ Send message to chat room
+        io.to(chatId).emit("receiveMessage", msg);
+
+        // 2️⃣ Mark as DELIVERED if receiver online
         const chat = await Chat.findById(chatId).populate("participants");
 
-        if (chat && chat.participants) {
-          chat.participants.forEach((user) => {
-            const uid = String(user._id);
-            if (uid !== String(senderId)) {
-              const socketId = onlineUsers.get(uid);
-              if (socketId) {
-                io.to(String(senderId)).emit("messageDelivered", {
-                  messageId: message._id,
-                  chatId,
-                  deliveredTo: uid
-                });
-              }
-            }
-          });
-        }
+        chat.participants.forEach(async (user) => {
+          const uid = String(user._id);
+
+          if (uid !== String(msg.sender._id) && onlineUsers.has(uid)) {
+            await Message.findByIdAndUpdate(messageId, {
+              status: "delivered",
+            });
+
+            io.to(String(msg.sender._id)).emit("messageStatusUpdate", {
+              messageId,
+              status: "delivered",
+            });
+          }
+        });
       } catch (err) {
         console.error("sendMessage error:", err);
       }
     });
 
-    // Delivered
-    socket.on("messageDelivered", async ({ messageId, chatId, userId }) => {
+    /* =========================
+       MESSAGE READ
+    ========================= */
+    socket.on("messageRead", async ({ messageId, readerId }) => {
       try {
-        await Message.findByIdAndUpdate(
+        const msg = await Message.findByIdAndUpdate(
           messageId,
-          { $addToSet: { deliveredTo: userId } },
+          {
+            status: "read",
+            readAt: new Date(),
+            $addToSet: { readBy: readerId },
+          },
           { new: true }
         );
 
-        const msg = await Message.findById(messageId);
+        if (!msg) return;
 
-        io.to(String(msg.sender)).emit("messageDelivered", {
+        // Notify sender (blue ticks)
+        io.to(String(msg.sender)).emit("messageStatusUpdate", {
           messageId,
-          chatId,
-          deliveredTo: userId,
+          status: "read",
         });
       } catch (err) {
-        console.error("delivered error", err);
+        console.error("messageRead error:", err);
       }
     });
 
-    // Read
-    socket.on("messageRead", async ({ messageId, chatId, readerId }) => {
-      try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          {
-            $addToSet: { seenBy: readerId },
-            read: true,
-            readAt: new Date(),
-          }
-        );
-
-        io.to(chatId).emit("messageRead", {
-          messageId,
-          readerId,
-          chatId,
-        });
-      } catch (err) {
-        console.error("read error", err);
-      }
+    /* =========================
+       TYPING
+    ========================= */
+    socket.on("typing", ({ chatId, userId }) => {
+      socket.to(chatId).emit("typing", { chatId, userId });
     });
 
-    // Add reaction
+    socket.on("stopTyping", ({ chatId, userId }) => {
+      socket.to(chatId).emit("stopTyping", { chatId, userId });
+    });
+
+    /* =========================
+       REACTIONS
+    ========================= */
     socket.on("addReaction", async ({ messageId, userId, emoji }) => {
       try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          { $push: { reactions: { user: userId, emoji } } }
-        );
+        await Message.findByIdAndUpdate(messageId, {
+          $push: { reactions: { user: userId, emoji } },
+        });
 
         const msg = await Message.findById(messageId);
-        io.to(String(msg.chat)).emit("reactionAdded", { messageId, userId, emoji });
+        io.to(String(msg.chat)).emit("reactionAdded", {
+          messageId,
+          userId,
+          emoji,
+        });
       } catch (err) {
         console.error("reaction error", err);
       }
     });
 
-    // Delete message for everyone
-    socket.on("deleteMessageForAll", async ({ messageId, chatId }) => {
+    /* =========================
+       DELETE MESSAGE
+    ========================= */
+    socket.on("deleteMessageForAll", async ({ messageId }) => {
       try {
-        await Message.findByIdAndUpdate(
+        const msg = await Message.findByIdAndUpdate(
           messageId,
-          { deletedForAll: true, deletedAt: new Date() }
+          { deletedForAll: true, deletedAt: new Date() },
+          { new: true }
         );
 
-        io.to(chatId).emit("messageDeletedForAll", { messageId });
+        io.to(String(msg.chat)).emit("messageDeletedForAll", { messageId });
       } catch (err) {
         console.error("delete error", err);
       }
     });
 
-    // Disconnect
+    /* =========================
+       DISCONNECT
+    ========================= */
     socket.on("disconnect", async () => {
-      try {
-        const userId = socket.userId;
+      const userId = socket.userId;
 
-        if (userId) {
-          onlineUsers.delete(String(userId));
-          await User.findByIdAndUpdate(userId, {
-            isOnline: false,
-            lastSeen: new Date(),
-          });
+      if (userId) {
+        onlineUsers.delete(userId);
 
-          io.emit("userOffline", {
-            userId,
-            lastSeen: new Date(),
-          });
-        }
-      } catch (err) {
-        console.error("disconnect error", err);
+        await User.findByIdAndUpdate(userId, {
+          isOnline: false,
+          lastSeen: new Date(),
+        });
+
+        io.emit("userOffline", {
+          userId,
+          lastSeen: new Date(),
+        });
       }
     });
   });
